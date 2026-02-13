@@ -7,7 +7,7 @@ interface UseToastAnimationProps {
   duration?: number;
   onRemove: (id: string) => void;
   toastId: string;
-}
+} 
 
 /**
  * Кастомный хук для управления жизненным циклом анимации уведомлений и взаимодействиями.

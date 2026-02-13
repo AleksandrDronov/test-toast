@@ -23,7 +23,7 @@ describe('ToastItem', () => {
     ...overrides,
   })
 
-  it('should call onRemove after duration when not hovered', async () => {
+  it('должен вызвать onRemove после истечения времени, когда не наведен курсор', async () => {
     const toast = createToast()
     
     render(<ToastItem toast={toast} onRemove={mockOnRemove} />)
@@ -47,7 +47,7 @@ describe('ToastItem', () => {
     expect(mockOnRemove).toHaveBeenCalledWith(toast.id)
   })
 
-  it('should pause timer on mouse enter and resume on mouse leave', async () => {
+  it('должен приостановить таймер при наведении мыши и возобновить при уходе курсора', async () => {
     const toast = createToast({ duration: 3000 })
     
     render(<ToastItem toast={toast} onRemove={mockOnRemove} />)
@@ -85,7 +85,7 @@ describe('ToastItem', () => {
     expect(mockOnRemove).toHaveBeenCalledWith(toast.id)
   })
 
-  it('should handle multiple hover cycles correctly', async () => {
+  it('должен корректно обрабатывать несколько циклов наведения', async () => {
     const toast = createToast({ duration: 3000 })
     
     render(<ToastItem toast={toast} onRemove={mockOnRemove} />)
@@ -119,7 +119,7 @@ describe('ToastItem', () => {
     expect(mockOnRemove).toHaveBeenCalledWith(toast.id)
   })
 
-  it('should remove toast immediately if duration is 0 or negative', () => {
+  it('должен немедленно удалить уведомление, если duration равен 0 или отрицательный', () => {
     const toastZero = createToast({ duration: 0 })
     const toastNegative = createToast({ duration: -1000 })
     
@@ -144,7 +144,7 @@ describe('ToastItem', () => {
     expect(mockOnRemove).toHaveBeenCalledWith(toastNegative.id)
   })
 
-  it('should handle manual removal via close button', () => {
+  it('должен обрабатывать ручное удаление через кнопку закрытия', () => {
     const toast = createToast()
     
     render(<ToastItem toast={toast} onRemove={mockOnRemove} />)
@@ -161,7 +161,7 @@ describe('ToastItem', () => {
     expect(mockOnRemove).toHaveBeenCalledWith(toast.id)
   })
 
-  it('should use default duration when not specified', () => {
+  it('должен использовать duration по умолчанию, если она не указана', () => {
     const toast = createToast({ duration: undefined })
     
     render(<ToastItem toast={toast} onRemove={mockOnRemove} />)
@@ -184,7 +184,7 @@ describe('ToastItem', () => {
     expect(mockOnRemove).toHaveBeenCalledWith(toast.id)
   })
 
-  it('should have enter animation on mount', () => {
+  it('должен иметь анимацию появления при монтировании', () => {
     const toast = createToast()
     
     render(<ToastItem toast={toast} onRemove={mockOnRemove} />)
@@ -203,7 +203,7 @@ describe('ToastItem', () => {
     expect(toastElement).not.toHaveClass('toast-exit')
   })
 
-  it('should cleanup timeout on unmount', () => {
+  it('должен очищать таймаут при размонтировании', () => {
     const toast = createToast()
     const { unmount } = render(<ToastItem toast={toast} onRemove={mockOnRemove} />)
     
