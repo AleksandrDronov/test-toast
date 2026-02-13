@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
+import { createRAFTimer } from "../utils/rafTimer";
 
 const DEFAULT_DURATION = 3000;
 const EXIT_ANIMATION_DURATION = 300;
@@ -7,25 +8,25 @@ interface UseToastAnimationProps {
   duration?: number;
   onRemove: (id: string) => void;
   toastId: string;
-} 
+}
 
 /**
  * Кастомный хук для управления жизненным циклом анимации уведомлений и взаимодействиями.
- * 
+ *
  * Обрабатывает видимость уведомлений, авто-скрытие с паузой при наведении и ручное закрытие.
  * Предоставляет плавные анимации появления/исчезновения и корректную очистку таймеров.
- * 
+ *
  * @param props - Параметры конфигурации для анимации уведомления
  * @param props.duration - Время в миллисекундах перед авто-скрытием (по умолчанию: 3000мс)
  * @param props.onRemove - Функция обратного вызова для удаления уведомления из DOM
  * @param props.toastId - Уникальный идентификатор экземпляра уведомления
- * 
+ *
  * @returns Объект, содержащий состояние анимации и обработчики событий
  * @returns boolean isVisible - Видимо ли уведомление в данный момент (состояние анимации появления/исчезновения)
  * @returns function handleMouseEnter - Обработчик события наведения мыши (ставит на паузу авто-скрытие)
  * @returns function handleMouseLeave - Обработчик события ухода мыши (возобновляет авто-скрытие)
  * @returns function handleClose - Обработчик ручного закрытия уведомления
- * 
+ *
  * @example
  * ```tsx
  * const { isVisible, handleMouseEnter, handleMouseLeave, handleClose } = useToastAnimation({
@@ -36,75 +37,95 @@ interface UseToastAnimationProps {
  * ```
  */
 export const useToastAnimation = ({
-  duration,
+  duration = DEFAULT_DURATION,
   onRemove,
   toastId,
 }: UseToastAnimationProps) => {
   const [isPaused, setIsPaused] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  
   const startTimeRef = useRef<number>(0);
   const pausedTimeRef = useRef<number>(0);
-  const timeoutRef = useRef<number | null>(null);
+  
   const removeTimeoutRef = useRef<number | null>(null);
+  const mountTimerRef = useRef<number | null>(null);
+
+  const wasPausedRef = useRef(false);
 
   /**
-   * Очищает все активные таймеры для предотвращения утечек памяти
+   * Создает таймер для удаления уведомления после завершения анимации исчезновения.
+   * 
+   * Использует RAF таймер для плавного удаления с задержкой EXIT_ANIMATION_DURATION,
+   * что обеспечивает корректную анимацию перед полным удалением из DOM.
    */
-  const clearAllTimeouts = useCallback(() => {
-    if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    if (removeTimeoutRef.current) clearTimeout(removeTimeoutRef.current);
-  }, []);
+  const removeToast = useCallback(() => {
+    return createRAFTimer({
+      delay: EXIT_ANIMATION_DURATION,
+      callback: () => onRemove(toastId),
+      ref: removeTimeoutRef,
+    });
+  }, [onRemove, toastId]);
 
   /**
    * Запускает анимацию исчезновения и планирует удаление уведомления
    */
   const startExitAnimation = useCallback(() => {
-    setIsVisible(false);
-    removeTimeoutRef.current = setTimeout(
-      () => onRemove(toastId),
-      EXIT_ANIMATION_DURATION,
-    );
-  }, [onRemove, toastId]);
+    return createRAFTimer({
+      delay: 0,
+      callback: () => {
+        setIsVisible(false);
+        removeToast();
+      },
+      ref: removeTimeoutRef,
+    });
+  }, [removeToast]);
 
   useEffect(() => {
-    const mountTimer = setTimeout(() => {
-      setIsVisible(true);
-    }, 10);
+    const cleanup = createRAFTimer({
+      delay: 0,
+      callback: () => setIsVisible(true),
+      ref: mountTimerRef,
+    });
 
     return () => {
-      clearTimeout(mountTimer);
+      cleanup();
+      removeToast();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    const toastDuration = duration ?? DEFAULT_DURATION;
+    let cleanup: (() => void) | undefined;
 
-    if (isPaused) {
-      pausedTimeRef.current = Date.now() - startTimeRef.current;
-      clearAllTimeouts();
-      return;
+    if (isPaused && !wasPausedRef.current) {
+      pausedTimeRef.current += performance.now() - startTimeRef.current;
     }
 
-    const elapsed = pausedTimeRef.current;
-    const timeLeft = toastDuration - elapsed;
+    if (!isPaused) {
+      const elapsed = pausedTimeRef.current;
+      const timeLeft = duration - elapsed;
 
-    if (timeLeft <= 0) {
-      removeTimeoutRef.current = setTimeout(startExitAnimation, 0);
-      return;
+      if (timeLeft <= 0) {
+        cleanup = startExitAnimation();
+      } else {
+        startTimeRef.current = performance.now();
+
+        cleanup = createRAFTimer({
+          delay: timeLeft,
+          callback: startExitAnimation,
+          ref: removeTimeoutRef,
+        });
+      }
     }
 
-    startTimeRef.current = Date.now();
-    timeoutRef.current = setTimeout(startExitAnimation, timeLeft);
+    wasPausedRef.current = isPaused;
 
-    return clearAllTimeouts;
-  }, [
-    toastId,
-    duration,
-    isPaused,
-    onRemove,
-    clearAllTimeouts,
-    startExitAnimation,
-  ]);
+    return () => {
+      if (cleanup) {
+        cleanup();
+      }
+    };
+  }, [duration, isPaused, startExitAnimation]);
 
   /**
    * Обрабатывает событие наведения мыши - ставит на паузу таймер авто-скрытия
@@ -119,14 +140,13 @@ export const useToastAnimation = ({
   const handleMouseLeave = useCallback(() => {
     setIsPaused(false);
   }, []);
-
+  
   /**
-   * Обрабатывает запрос ручного закрытия - запускает анимацию исчезновения немедленно
+   * Обрабатывает событие закрытия тоста - запускает анимацию исчезновения
    */
   const handleClose = useCallback(() => {
-    setIsVisible(false);
-    removeTimeoutRef.current = setTimeout(() => onRemove(toastId), 300);
-  }, [onRemove, toastId]);
+    startExitAnimation();
+  }, [startExitAnimation]);
 
   return {
     isVisible,
