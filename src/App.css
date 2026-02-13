@@ -8,6 +8,7 @@ body {
   font-family: system-ui, -apple-system, sans-serif;
   background-color: #1a1a1a;
   color: #ffffff;
+  overflow-x: hidden;
 }
 
 .app-layout {
@@ -81,6 +82,17 @@ button:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.toast-enter {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+.toast-exit {
+  transform: translateX(100%);
+  opacity: 0;
 }
 
 .toast button {

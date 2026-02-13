@@ -1,8 +1,9 @@
-// import { ToastProvider, useToast } from './context/ToastContext';
+import { ToastProvider } from './context/ToastProvider';
+import { useToast } from './context/useToast';
 import './App.css';
 
 const TriggerButtons = () => {
-  // const { addToast } = useToast();
+  const { addToast } = useToast();
 
   return (
     <div className="card">
@@ -10,21 +11,21 @@ const TriggerButtons = () => {
       <div className="buttons-grid">
         <button 
           className="btn-success"
-          // onClick={() => addToast({ message: 'Успех!', type: 'success' })}
+          onClick={() => addToast({ message: 'Успех!', type: 'success' })}
         >
           Success Toast
         </button>
 
         <button 
           className="btn-error"
-          // onClick={() => addToast({ message: 'Ошибка!', type: 'error', duration: 5000 })}
+          onClick={() => addToast({ message: 'Ошибка!', type: 'error', duration: 5000 })}
         >
           Error (5s)
         </button>
 
         <button 
           className="btn-warning"
-          // onClick={() => addToast({ message: 'Предупрежение', type: 'warning' })}
+          onClick={() => addToast({ message: 'Предупрежение', type: 'warning' })}
         >
           Warning
         </button>
@@ -38,18 +39,20 @@ const TriggerButtons = () => {
 
 function App() {
   return (
-    <div className="app-layout">
-        <header className="header">
-          <h1>Система управления тостами</h1>
-        </header>
-        
-        <main className="content">
-          <TriggerButtons />
-          <div className="dummy-content">
-             <p>Основная область содержимого</p>
-          </div>
-        </main>
-    </div>
+    <ToastProvider>
+      <div className="app-layout">
+          <header className="header">
+            <h1>Система управления тостами</h1>
+          </header>
+          
+          <main className="content">
+            <TriggerButtons />
+            <div className="dummy-content">
+               <p>Основная область содержимого</p>
+            </div>
+          </main>
+      </div>
+    </ToastProvider>
   );
 }
 

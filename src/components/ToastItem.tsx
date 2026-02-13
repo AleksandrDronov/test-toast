@@ -1,5 +1,6 @@
-import React from 'react';
-import type { Toast } from '../types/types';
+import React from "react";
+import type { Toast } from "../types/types";
+import { useToastAnimation } from "../hooks/useToastAnimation";
 
 interface ToastItemProps {
   toast: Toast;
@@ -7,10 +8,21 @@ interface ToastItemProps {
 }
 
 export const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
+  const { isVisible, handleMouseEnter, handleMouseLeave, handleClose } =
+    useToastAnimation({
+      duration: toast.duration,
+      onRemove,
+      toastId: toast.id,
+    });
+
   return (
-    <div className={`toast toast-${toast.type}`}>
+    <li
+      className={`toast toast-${toast.type} ${isVisible ? "toast-enter" : "toast-exit"}`}
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
       <span>{toast.message}</span>
-      <button onClick={() => onRemove(toast.id)}>x</button>
-    </div>
+      <button onClick={handleClose}>×</button>
+    </li>
   );
 };
