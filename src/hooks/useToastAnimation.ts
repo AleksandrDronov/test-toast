@@ -11,6 +11,34 @@ interface UseToastAnimationProps {
   toastId: string;
 }
 
+/**
+ * Кастомный хук для управления жизненным циклом анимации и таймингом тоста.
+ * 
+ * Этот хук обрабатывает полную машину состояний анимации для toast-уведомлений,
+ * включая фазы: появление, выполнение, пауза (при наведении) и выход. Использует
+ * requestAnimationFrame для плавных анимаций и точного контроля тайминга.
+ * 
+ * @param props - Свойства конфигурации хука
+ * @param props.duration - Длительность в миллисекундах, которую тост должен оставаться видимым перед авто-закрытием. По умолчанию 3000мс.
+ * @param props.onRemove - Функция обратного вызова, вызываемая когда тост должен быть удалён из DOM
+ * @param props.toastId - Уникальный идентификатор экземпляра тоста
+ * 
+ * @returns Объект, содержащий состояние анимации и обработчики событий
+ * @returns returns.isVisible - Булево значение, указывающее должен ли тост быть видимым (true во время выполнения и выхода)
+ * @returns returns.isExiting - Булево значение, указывающее находится ли тост в фазе анимации выхода
+ * @returns returns.handleMouseEnter - Обработчик события наведения мыши, который приостанавливает таймер тоста
+ * @returns returns.handleMouseLeave - Обработчик события ухода мыши, который возобновляет таймер тоста
+ * @returns returns.handleClose - Обработчик клика для ручного закрытия тоста, который запускает анимацию выхода
+ * 
+ * @example
+ * ```tsx
+ * const { isVisible, isExiting, handleMouseEnter, handleMouseLeave, handleClose } = useToastAnimation({
+ *   duration: 5000,
+ *   onRemove: (id) => removeToast(id),
+ *   toastId: 'toast-123'
+ * });
+ * ```
+ */
 export const useToastAnimation = ({
   duration = DEFAULT_DURATION,
   onRemove,
