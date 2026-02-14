@@ -13,23 +13,23 @@ interface UseToastAnimationProps {
 
 /**
  * Кастомный хук для управления жизненным циклом анимации и таймингом тоста.
- * 
+ *
  * Этот хук обрабатывает полную машину состояний анимации для toast-уведомлений,
  * включая фазы: появление, выполнение, пауза (при наведении) и выход. Использует
  * requestAnimationFrame для плавных анимаций и точного контроля тайминга.
- * 
+ *
  * @param props - Свойства конфигурации хука
  * @param props.duration - Длительность в миллисекундах, которую тост должен оставаться видимым перед авто-закрытием. По умолчанию 3000мс.
  * @param props.onRemove - Функция обратного вызова, вызываемая когда тост должен быть удалён из DOM
  * @param props.toastId - Уникальный идентификатор экземпляра тоста
- * 
+ *
  * @returns Объект, содержащий состояние анимации и обработчики событий
  * @returns returns.isVisible - Булево значение, указывающее должен ли тост быть видимым (true во время выполнения и выхода)
  * @returns returns.isExiting - Булево значение, указывающее находится ли тост в фазе анимации выхода
  * @returns returns.handleMouseEnter - Обработчик события наведения мыши, который приостанавливает таймер тоста
  * @returns returns.handleMouseLeave - Обработчик события ухода мыши, который возобновляет таймер тоста
  * @returns returns.handleClose - Обработчик клика для ручного закрытия тоста, который запускает анимацию выхода
- * 
+ *
  * @example
  * ```tsx
  * const { isVisible, isExiting, handleMouseEnter, handleMouseLeave, handleClose } = useToastAnimation({
@@ -70,6 +70,7 @@ export const useToastAnimation = ({
   useEffect(() => {
     const loop = (now: number) => {
       const phase = phaseRef.current;
+      let shouldContinue = true;
 
       // --- ENTERING ---
       if (phase === "entering") {
@@ -78,7 +79,7 @@ export const useToastAnimation = ({
 
       // --- RUNNING ---
       if (phase === "running") {
-        if (!startRef.current) {
+        if (startRef.current === 0) {
           startRef.current = now;
         }
 
@@ -93,28 +94,30 @@ export const useToastAnimation = ({
 
       // --- EXITING ---
       if (phase === "exiting") {
-        if (!exitStartRef.current) {
+        if (exitStartRef.current === 0) {
           exitStartRef.current = now;
         }
 
         if (now - exitStartRef.current >= EXIT_ANIMATION_DURATION) {
+          shouldContinue = false;
           onRemove(toastId);
-          return; // останавливаем loop
         }
       }
 
-      rafRef.current = requestAnimationFrame(loop);
+      if (shouldContinue) {
+        rafRef.current = requestAnimationFrame(loop);
+      }
     };
 
     rafRef.current = requestAnimationFrame(loop);
 
     return () => {
-      if (rafRef.current) {
+      if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
       }
     };
   }, [duration, onRemove, toastId]);
-
+  
   const handleMouseEnter = useCallback(() => {
     if (phaseRef.current !== "running") return;
 
