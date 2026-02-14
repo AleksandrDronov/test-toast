@@ -43,66 +43,69 @@ export const useToastAnimation = ({
   onRemove,
   toastId,
 }: UseToastAnimationProps) => {
-  const phaseRef = useRef<Phase>("entering");
-
-  // UI state — меняется только при смене фаз
   const [isVisible, setIsVisible] = useState(false);
 
+  const phaseRef = useRef<Phase>("entering");
   const rafRef = useRef<number | null>(null);
-  const startRef = useRef<number>(0);
-  const elapsedRef = useRef<number>(0);
-  const exitStartRef = useRef<number>(0);
 
-  const setPhase = (next: Phase) => {
-    phaseRef.current = next;
-
-    if (next === "running") {
-      setIsVisible(true);
-    }
-
-    if (next === "exiting") {
-      setIsVisible(false);
-    }
-  };
+  const startRef = useRef<number | null>(null);
+  const elapsedRef = useRef(0);
+  const exitStartRef = useRef<number | null>(null);
+  const removedRef = useRef(false);
 
   useEffect(() => {
-    const loop = (now: number) => {
-      const phase = phaseRef.current;
-      let shouldContinue = true;
+    const setPhase = (next: Phase) => {
+      phaseRef.current = next;
 
-      // --- ENTERING ---
-      if (phase === "entering") {
-        setPhase("running");
+      if (next === "running") setIsVisible(true);
+      if (next === "exiting") setIsVisible(false);
+    };
+
+    const handleRunning = (now: number) => {
+      if (startRef.current === null) {
+        startRef.current = now;
       }
 
-      // --- RUNNING ---
-      if (phase === "running") {
-        if (startRef.current === 0) {
-          startRef.current = now;
-        }
+      const total = elapsedRef.current + (now - startRef.current);
 
-        const total = elapsedRef.current + (now - startRef.current);
-
-        if (total >= duration) {
-          startRef.current = 0;
-          exitStartRef.current = now;
-          setPhase("exiting");
-        }
+      if (total >= duration) {
+        startRef.current = null;
+        exitStartRef.current = now;
+        setPhase("exiting");
       }
+    };
 
-      // --- EXITING ---
-      if (phase === "exiting") {
-        if (exitStartRef.current === 0) {
-          exitStartRef.current = now;
-        }
-
-        if (now - exitStartRef.current >= EXIT_ANIMATION_DURATION) {
-          shouldContinue = false;
+    const handleExit = (now: number) => {
+      if (
+        exitStartRef.current !== null &&
+        now - exitStartRef.current >= EXIT_ANIMATION_DURATION
+      ) {
+        if (!removedRef.current) {
+          removedRef.current = true;
           onRemove(toastId);
         }
       }
+    };
 
-      if (shouldContinue) {
+    const loop = (now: number) => {
+      switch (phaseRef.current) {
+        case "entering":
+          setPhase("running");
+          break;
+
+        case "running":
+          handleRunning(now);
+          break;
+
+        case "paused":
+          break;
+
+        case "exiting":
+          handleExit(now);
+          break;
+      }
+
+      if (!removedRef.current) {
         rafRef.current = requestAnimationFrame(loop);
       }
     };
@@ -115,13 +118,14 @@ export const useToastAnimation = ({
       }
     };
   }, [duration, onRemove, toastId]);
-  
+
   const handleMouseEnter = useCallback(() => {
     if (phaseRef.current !== "running") return;
+    if (startRef.current === null) return;
 
     const now = performance.now();
     elapsedRef.current += now - startRef.current;
-    startRef.current = 0;
+    startRef.current = null;
 
     phaseRef.current = "paused";
   }, []);
@@ -136,7 +140,8 @@ export const useToastAnimation = ({
     if (phaseRef.current === "exiting") return;
 
     exitStartRef.current = performance.now();
-    setPhase("exiting");
+    phaseRef.current = "exiting";
+    setIsVisible(false);
   }, []);
 
   return {
