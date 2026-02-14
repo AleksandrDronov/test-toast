@@ -24,15 +24,14 @@ interface UseToastAnimationProps {
  * @param props.toastId - Уникальный идентификатор экземпляра тоста
  *
  * @returns Объект, содержащий состояние анимации и обработчики событий
- * @returns returns.isVisible - Булево значение, указывающее должен ли тост быть видимым (true во время выполнения и выхода)
- * @returns returns.isExiting - Булево значение, указывающее находится ли тост в фазе анимации выхода
+ * @returns returns.isVisible - Булево значение, указывающее должен ли тост быть видимым
  * @returns returns.handleMouseEnter - Обработчик события наведения мыши, который приостанавливает таймер тоста
  * @returns returns.handleMouseLeave - Обработчик события ухода мыши, который возобновляет таймер тоста
  * @returns returns.handleClose - Обработчик клика для ручного закрытия тоста, который запускает анимацию выхода
  *
  * @example
  * ```tsx
- * const { isVisible, isExiting, handleMouseEnter, handleMouseLeave, handleClose } = useToastAnimation({
+ * const { isVisible, handleMouseEnter, handleMouseLeave, handleClose } = useToastAnimation({
  *   duration: 5000,
  *   onRemove: (id) => removeToast(id),
  *   toastId: 'toast-123'
@@ -48,7 +47,6 @@ export const useToastAnimation = ({
 
   // UI state — меняется только при смене фаз
   const [isVisible, setIsVisible] = useState(false);
-  const [isExiting, setIsExiting] = useState(false);
 
   const rafRef = useRef<number | null>(null);
   const startRef = useRef<number>(0);
@@ -63,7 +61,7 @@ export const useToastAnimation = ({
     }
 
     if (next === "exiting") {
-      setIsExiting(true);
+      setIsVisible(false);
     }
   };
 
@@ -143,7 +141,6 @@ export const useToastAnimation = ({
 
   return {
     isVisible,
-    isExiting,
     handleMouseEnter,
     handleMouseLeave,
     handleClose,

@@ -8,26 +8,18 @@ interface ToastItemProps {
 }
 
 export const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
-  const {
-    isVisible,
-    isExiting,
-    handleMouseEnter,
-    handleMouseLeave,
-    handleClose,
-  } = useToastAnimation({
-    duration: toast.duration,
-    onRemove,
-    toastId: toast.id,
-  });
+  const { isVisible, handleMouseEnter, handleMouseLeave, handleClose } =
+    useToastAnimation({
+      duration: toast.duration,
+      onRemove,
+      toastId: toast.id,
+    });
 
   const toastClasses = [
     "toast",
     `toast-${toast.type}`,
-    isVisible && "toast-enter",
-    isExiting && "toast-exit",
-  ]
-    .filter(Boolean)
-    .join(" ");
+    isVisible ? "toast-enter" : "toast-exit",
+  ].join(" ");
 
   return (
     <li
