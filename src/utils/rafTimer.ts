@@ -19,20 +19,31 @@ interface CreateRAFTimerParams {
  *
  * @example
  * ```tsx
- * const timerRef = useRef<number | null>(null);
- *
- * createRAFTimer({
- *   delay: 1000,
- *   callback: () => {
- *     console.log('Выполнено через 1 секунду');
- *   },
- *   ref: timerRef
- * });
- *
- * // Очистка
- * if (timerRef.current) {
- *   cancelAnimationFrame(timerRef.current);
- * }
+ * import { useRef, useEffect } from 'react';
+ * import { createRAFTimer } from './utils/rafTimer';
+ * 
+ * const MyComponent = () => {
+ *   const timerRef = useRef<number | null>(null);
+ *   
+ *   const startTimer = () => {
+ *     createRAFTimer({
+ *       delay: 1000,
+ *       callback: () => {
+ *         console.log('Выполнено через 1 секунду');
+ *       },
+ *       ref: timerRef
+ *     });
+ *   };
+ *   
+ *   useEffect(() => {
+ *     return () => {
+ *       timerRef.current && cancelAnimationFrame(timerRef.current);
+ *     };
+ *   }, []);
+ *  
+ *   
+ *   return <button onClick={startTimer}>Запустить таймер</button>;
+ * };
  * ```
  */
 export const createRAFTimer = ({
