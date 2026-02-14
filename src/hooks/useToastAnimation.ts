@@ -1,8 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from "react";
-import { createRAFTimer } from "../utils/rafTimer";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 const DEFAULT_DURATION = 3000;
 const EXIT_ANIMATION_DURATION = 300;
+
+type Phase = "entering" | "running" | "paused" | "exiting";
 
 interface UseToastAnimationProps {
   duration?: number;
@@ -10,146 +11,108 @@ interface UseToastAnimationProps {
   toastId: string;
 }
 
-/**
- * Кастомный хук для управления жизненным циклом анимации уведомлений и взаимодействиями.
- *
- * Обрабатывает видимость уведомлений, авто-скрытие с паузой при наведении и ручное закрытие.
- * Предоставляет плавные анимации появления/исчезновения и корректную очистку таймеров.
- *
- * @param props - Параметры конфигурации для анимации уведомления
- * @param props.duration - Время в миллисекундах перед авто-скрытием (по умолчанию: 3000мс)
- * @param props.onRemove - Функция обратного вызова для удаления уведомления из DOM
- * @param props.toastId - Уникальный идентификатор экземпляра уведомления
- *
- * @returns Объект, содержащий состояние анимации и обработчики событий
- * @returns boolean isVisible - Видимо ли уведомление в данный момент (состояние анимации появления/исчезновения)
- * @returns function handleMouseEnter - Обработчик события наведения мыши (ставит на паузу авто-скрытие)
- * @returns function handleMouseLeave - Обработчик события ухода мыши (возобновляет авто-скрытие)
- * @returns function handleClose - Обработчик ручного закрытия уведомления
- *
- * @example
- * ```tsx
- * const { isVisible, handleMouseEnter, handleMouseLeave, handleClose } = useToastAnimation({
- *   duration: 5000,
- *   onRemove: (id) => removeToast(id),
- *   toastId: 'toast-123'
- * });
- * ```
- */
 export const useToastAnimation = ({
   duration = DEFAULT_DURATION,
   onRemove,
   toastId,
 }: UseToastAnimationProps) => {
-  const [isPaused, setIsPaused] = useState(false);
+  const phaseRef = useRef<Phase>("entering");
+
+  // UI state — меняется только при смене фаз
   const [isVisible, setIsVisible] = useState(false);
-  
-  const startTimeRef = useRef<number>(0);
-  const pausedTimeRef = useRef<number>(0);
-  
-  const removeTimeoutRef = useRef<number | null>(null);
-  const mountTimerRef = useRef<number | null>(null);
+  const [isExiting, setIsExiting] = useState(false);
 
-  const wasPausedRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+  const startRef = useRef<number>(0);
+  const elapsedRef = useRef<number>(0);
+  const exitStartRef = useRef<number>(0);
 
-  /**
-   * Создает таймер для удаления уведомления после завершения анимации исчезновения.
-   * 
-   * Использует RAF таймер для плавного удаления с задержкой EXIT_ANIMATION_DURATION,
-   * что обеспечивает корректную анимацию перед полным удалением из DOM.
-   */
-  const removeToast = useCallback(() => {
-    return createRAFTimer({
-      delay: EXIT_ANIMATION_DURATION,
-      callback: () => onRemove(toastId),
-      ref: removeTimeoutRef,
-    });
-  }, [onRemove, toastId]);
+  const setPhase = (next: Phase) => {
+    phaseRef.current = next;
 
-  /**
-   * Запускает анимацию исчезновения и планирует удаление уведомления
-   */
-  const startExitAnimation = useCallback(() => {
-    return createRAFTimer({
-      delay: 0,
-      callback: () => {
-        setIsVisible(false);
-        removeToast();
-      },
-      ref: removeTimeoutRef,
-    });
-  }, [removeToast]);
-
-  useEffect(() => {
-    const cleanup = createRAFTimer({
-      delay: 0,
-      callback: () => setIsVisible(true),
-      ref: mountTimerRef,
-    });
-
-    return () => {
-      cleanup();
-      removeToast();
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    let cleanup: (() => void) | undefined;
-
-    if (isPaused && !wasPausedRef.current) {
-      pausedTimeRef.current += performance.now() - startTimeRef.current;
+    if (next === "running") {
+      setIsVisible(true);
     }
 
-    if (!isPaused) {
-      const elapsed = pausedTimeRef.current;
-      const timeLeft = duration - elapsed;
-
-      if (timeLeft <= 0) {
-        cleanup = startExitAnimation();
-      } else {
-        startTimeRef.current = performance.now();
-
-        cleanup = createRAFTimer({
-          delay: timeLeft,
-          callback: startExitAnimation,
-          ref: removeTimeoutRef,
-        });
-      }
+    if (next === "exiting") {
+      setIsExiting(true);
     }
+  };
 
-    wasPausedRef.current = isPaused;
+  useEffect(() => {
+    const loop = (now: number) => {
+      const phase = phaseRef.current;
+
+      // --- ENTERING ---
+      if (phase === "entering") {
+        setPhase("running");
+      }
+
+      // --- RUNNING ---
+      if (phase === "running") {
+        if (!startRef.current) {
+          startRef.current = now;
+        }
+
+        const total = elapsedRef.current + (now - startRef.current);
+
+        if (total >= duration) {
+          startRef.current = 0;
+          exitStartRef.current = now;
+          setPhase("exiting");
+        }
+      }
+
+      // --- EXITING ---
+      if (phase === "exiting") {
+        if (!exitStartRef.current) {
+          exitStartRef.current = now;
+        }
+
+        if (now - exitStartRef.current >= EXIT_ANIMATION_DURATION) {
+          onRemove(toastId);
+          return; // останавливаем loop
+        }
+      }
+
+      rafRef.current = requestAnimationFrame(loop);
+    };
+
+    rafRef.current = requestAnimationFrame(loop);
 
     return () => {
-      if (cleanup) {
-        cleanup();
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current);
       }
     };
-  }, [duration, isPaused, startExitAnimation]);
+  }, [duration, onRemove, toastId]);
 
-  /**
-   * Обрабатывает событие наведения мыши - ставит на паузу таймер авто-скрытия
-   */
   const handleMouseEnter = useCallback(() => {
-    setIsPaused(true);
+    if (phaseRef.current !== "running") return;
+
+    const now = performance.now();
+    elapsedRef.current += now - startRef.current;
+    startRef.current = 0;
+
+    phaseRef.current = "paused";
   }, []);
 
-  /**
-   * Обрабатывает событие ухода мыши - возобновляет таймер авто-скрытия
-   */
   const handleMouseLeave = useCallback(() => {
-    setIsPaused(false);
+    if (phaseRef.current !== "paused") return;
+
+    phaseRef.current = "running";
   }, []);
-  
-  /**
-   * Обрабатывает событие закрытия тоста - запускает анимацию исчезновения
-   */
+
   const handleClose = useCallback(() => {
-    startExitAnimation();
-  }, [startExitAnimation]);
+    if (phaseRef.current === "exiting") return;
+
+    exitStartRef.current = performance.now();
+    setPhase("exiting");
+  }, []);
 
   return {
     isVisible,
+    isExiting,
     handleMouseEnter,
     handleMouseLeave,
     handleClose,
