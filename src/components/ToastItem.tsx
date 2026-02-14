@@ -20,9 +20,18 @@ export const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
     toastId: toast.id,
   });
 
+  const toastClasses = [
+    "toast",
+    `toast-${toast.type}`,
+    isVisible && "toast-enter",
+    isExiting && "toast-exit",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
   return (
     <li
-      className={`toast toast-${toast.type} ${isVisible && "toast-enter"} ${isExiting && "toast-exit"}`}
+      className={toastClasses}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
