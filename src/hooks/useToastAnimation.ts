@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useCallback } from "react";
+import { useToastTimer } from "./useToastTimer";
+import { useToastPhase } from "./useToastPhase";
+import { useToastVisibility } from "./useToastVisibility";
 
 const DEFAULT_DURATION = 3000;
-const EXIT_ANIMATION_DURATION = 300;
-
-type Phase = "entering" | "running" | "paused" | "exiting";
 
 interface UseToastAnimationProps {
   duration?: number;
@@ -43,109 +43,74 @@ export const useToastAnimation = ({
   onRemove,
   toastId,
 }: UseToastAnimationProps) => {
-  const [isVisible, setIsVisible] = useState(false);
-
-  const phaseRef = useRef<Phase>("entering");
-  const rafRef = useRef<number | null>(null);
-
-  const startRef = useRef<number | null>(null);
-  const elapsedRef = useRef(0);
-  const exitStartRef = useRef<number | null>(null);
-  const removedRef = useRef(false);
+  const timer = useToastTimer(duration, onRemove, toastId);
+  const phase = useToastPhase();
+  const visibility = useToastVisibility();
 
   useEffect(() => {
-    const setPhase = (next: Phase) => {
-      phaseRef.current = next;
-
-      if (next === "running") setIsVisible(true);
-      if (next === "exiting") setIsVisible(false);
-    };
-
-    const handleRunning = (now: number) => {
-      if (startRef.current === null) {
-        startRef.current = now;
-      }
-
-      const total = elapsedRef.current + (now - startRef.current);
-
-      if (total >= duration) {
-        startRef.current = null;
-        exitStartRef.current = now;
-        setPhase("exiting");
-      }
-    };
-
-    const handleExit = (now: number) => {
-      if (
-        exitStartRef.current !== null &&
-        now - exitStartRef.current >= EXIT_ANIMATION_DURATION
-      ) {
-        if (!removedRef.current) {
-          removedRef.current = true;
-          onRemove(toastId);
-        }
-      }
-    };
-
     const loop = (now: number) => {
-      switch (phaseRef.current) {
+      const currentPhase = phase.getPhase();
+      
+      if (currentPhase === "paused") {
+        requestAnimationFrame(loop);
+        return;
+      }
+
+      switch (currentPhase) {
         case "entering":
-          setPhase("running");
+          phase.setPhase("running");
+          visibility.show();
           break;
 
         case "running":
-          handleRunning(now);
-          break;
-
-        case "paused":
+          timer.startTimer(now);
+          if (timer.isTimerExpired(now)) {
+            phase.setPhase("exiting");
+            visibility.hide();
+            timer.startExitTimer(now);
+          }
           break;
 
         case "exiting":
-          handleExit(now);
+          if (timer.isExitExpired(now)) {
+            timer.removeToast();
+            return;
+          }
           break;
       }
 
-      if (!removedRef.current) {
-        rafRef.current = requestAnimationFrame(loop);
+      if (!timer.isRemoved()) {
+        requestAnimationFrame(loop);
       }
     };
 
-    rafRef.current = requestAnimationFrame(loop);
+    const rafId = requestAnimationFrame(loop);
 
     return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-      }
+      cancelAnimationFrame(rafId);
     };
-  }, [duration, onRemove, toastId]);
+  }, [timer, phase, visibility]);
 
   const handleMouseEnter = useCallback(() => {
-    if (phaseRef.current !== "running") return;
-    if (startRef.current === null) return;
-
-    const now = performance.now();
-    elapsedRef.current += now - startRef.current;
-    startRef.current = null;
-
-    phaseRef.current = "paused";
-  }, []);
+    if (!phase.canPause()) return;
+    timer.pauseTimer();
+    phase.setPhase("paused");
+  }, [phase, timer]);
 
   const handleMouseLeave = useCallback(() => {
-    if (phaseRef.current !== "paused") return;
-
-    phaseRef.current = "running";
-  }, []);
+    if (!phase.canResume()) return;
+    phase.setPhase("running");
+  }, [phase]);
 
   const handleClose = useCallback(() => {
-    if (phaseRef.current === "exiting") return;
-
-    exitStartRef.current = performance.now();
-    phaseRef.current = "exiting";
-    setIsVisible(false);
-  }, []);
+    if (!phase.canClose()) return;
+    phase.setPhase("exiting");
+    visibility.hide();
+    timer.startExitTimer(performance.now());
+  }, [phase, visibility, timer]);
 
   return {
-    isVisible,
+    isVisible: visibility.isVisible,
     handleMouseEnter,
     handleMouseLeave,
     handleClose,
