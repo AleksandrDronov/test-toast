@@ -1,9 +1,7 @@
-import { useEffect, useCallback } from "react";
-import { useToastTimer } from "./useToastTimer";
-import { useToastPhase } from "./useToastPhase";
-import { useToastVisibility } from "./useToastVisibility";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 const DEFAULT_DURATION = 3000;
+const EXIT_ANIMATION_DURATION = 300;
 
 interface UseToastAnimationProps {
   duration?: number;
@@ -16,32 +14,15 @@ interface UseToastAnimationProps {
   resetKey?: number;
 }
 
+type TimeoutId = number | null;
+
 /**
- * Кастомный хук для управления жизненным циклом анимации и таймингом тоста.
- *
- * Этот хук обрабатывает полную машину состояний анимации для toast-уведомлений,
- * включая фазы: появление, выполнение, пауза (при наведении) и выход. Использует
- * requestAnimationFrame для плавных анимаций и точного контроля тайминга.
- *
- * @param props - Свойства конфигурации хука
- * @param props.duration - Длительность в миллисекундах, которую тост должен оставаться видимым перед авто-закрытием. По умолчанию 3000мс.
- * @param props.onRemove - Функция обратного вызова, вызываемая когда тост должен быть удалён из DOM
- * @param props.toastId - Уникальный идентификатор экземпляра тоста
- *
- * @returns Объект, содержащий состояние анимации и обработчики событий
- * @returns returns.isVisible - Булево значение, указывающее должен ли тост быть видимым
- * @returns returns.handleMouseEnter - Обработчик события наведения мыши, который приостанавливает таймер тоста
- * @returns returns.handleMouseLeave - Обработчик события ухода мыши, который возобновляет таймер тоста
- * @returns returns.handleClose - Обработчик клика для ручного закрытия тоста, который запускает анимацию выхода
- *
- * @example
- * ```tsx
- * const { isVisible, handleMouseEnter, handleMouseLeave, handleClose } = useToastAnimation({
- *   duration: 5000,
- *   onRemove: (id) => removeToast(id),
- *   toastId: 'toast-123'
- * });
- * ```
+ * Упрощённый хук для управления жизненным циклом тоста
+ * на основе setTimeout:
+ * - авто‑закрытие через duration
+ * - пауза таймера при наведении
+ * - плавное скрытие через EXIT_ANIMATION_DURATION,
+ *   после чего вызывается onRemove.
  */
 export const useToastAnimation = ({
   duration = DEFAULT_DURATION,
@@ -49,75 +30,105 @@ export const useToastAnimation = ({
   toastId,
   resetKey,
 }: UseToastAnimationProps) => {
-  const timer = useToastTimer(duration, onRemove, toastId, resetKey);
-  const phase = useToastPhase();
-  const visibility = useToastVisibility();
+  const [isVisible, setIsVisible] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
 
-  useEffect(() => {
-    const loop = (now: number) => {
-      const currentPhase = phase.getPhase();
-      
-      if (currentPhase === "paused") {
-        requestAnimationFrame(loop);
-        return;
-      }
+  const mainTimerIdRef = useRef<TimeoutId>(null);
+  const exitTimerIdRef = useRef<TimeoutId>(null);
+  const remainingRef = useRef<number>(duration);
+  const lastStartRef = useRef<number | null>(null);
 
-      switch (currentPhase) {
-        case "entering":
-          phase.setPhase("running");
-          visibility.show();
-          break;
-
-        case "running":
-          timer.startTimer(now);
-          if (timer.isTimerExpired(now)) {
-            phase.setPhase("exiting");
-            visibility.hide();
-            timer.startExitTimer(now);
-          }
-          break;
-
-        case "exiting":
-          if (timer.isExitExpired(now)) {
-            timer.removeToast();
-            return;
-          }
-          break;
-      }
-
-      if (!timer.isRemoved()) {
-        requestAnimationFrame(loop);
-      }
-    };
-
-    const rafId = requestAnimationFrame(loop);
-
-    return () => {
-      cancelAnimationFrame(rafId);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const clearMainTimer = useCallback(() => {
+    if (mainTimerIdRef.current !== null) {
+      clearTimeout(mainTimerIdRef.current);
+      mainTimerIdRef.current = null;
+    }
   }, []);
 
+  const clearExitTimer = useCallback(() => {
+    if (exitTimerIdRef.current !== null) {
+      clearTimeout(exitTimerIdRef.current);
+      exitTimerIdRef.current = null;
+    }
+  }, []);
+
+  const clearAll = useCallback(() => {
+    clearMainTimer();
+    clearExitTimer();
+  }, [clearMainTimer, clearExitTimer]);
+
+  const finishAndRemove = useCallback(() => {
+    onRemove(toastId);
+  }, [onRemove, toastId]);
+
+  const startExit = useCallback(() => {
+    setIsVisible(false);
+    clearExitTimer();
+
+    exitTimerIdRef.current = window.setTimeout(
+      finishAndRemove,
+      EXIT_ANIMATION_DURATION,
+    );
+  }, [clearExitTimer, finishAndRemove]);
+
+  const startMainTimer = useCallback(() => {
+    clearMainTimer();
+    if (remainingRef.current <= 0) {
+      startExit();
+      return;
+    }
+
+    lastStartRef.current = Date.now();
+    mainTimerIdRef.current = window.setTimeout(() => {
+      remainingRef.current = 0;
+      startExit();
+    }, remainingRef.current);
+  }, [clearMainTimer, startExit]);
+
+  useEffect(() => {
+    remainingRef.current = duration;
+    lastStartRef.current = null;
+
+    const immediateId = window.setTimeout(() => {
+      setIsVisible(true);
+      startMainTimer();
+    }, 0);
+
+    return () => {
+      clearTimeout(immediateId);
+      clearAll();
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetKey]);
+
   const handleMouseEnter = useCallback(() => {
-    if (!phase.canPause()) return;
-    timer.pauseTimer();
-    phase.setPhase("paused");
-  }, [phase, timer]);
+    if (isPaused) return;
+    if (lastStartRef.current === null) return;
+
+    const now = Date.now();
+    remainingRef.current = Math.max(
+      0,
+      remainingRef.current - (now - lastStartRef.current),
+    );
+
+    clearMainTimer();
+    lastStartRef.current = null;
+    setIsPaused(true);
+  }, [clearMainTimer, isPaused]);
 
   const handleMouseLeave = useCallback(() => {
-    if (!phase.canResume()) return;
-    phase.setPhase("running");
-  }, [phase]);
+    if (!isPaused) return;
+    setIsPaused(false);
+    startMainTimer();
+  }, [isPaused, startMainTimer]);
 
   const handleClose = useCallback(() => {
-    if (!phase.canClose()) return;
-    phase.setPhase("exiting");
-    visibility.hide();
-    timer.startExitTimer(performance.now());
-  }, [phase, visibility, timer]);
+    clearAll();
+    startExit();
+  }, [clearAll, startExit]);
 
   return {
-    isVisible: visibility.isVisible,
+    isVisible,
     handleMouseEnter,
     handleMouseLeave,
     handleClose,

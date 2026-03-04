@@ -36,8 +36,6 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   };
 
-  
-
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
       {children}
