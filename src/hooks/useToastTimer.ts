@@ -1,12 +1,25 @@
-import { useRef, useCallback } from "react";
+import { useRef, useCallback, useEffect } from "react";
 
 const EXIT_ANIMATION_DURATION = 300;
 
-export const useToastTimer = (duration: number, onRemove: (id: string) => void, toastId: string) => {
+export const useToastTimer = (
+  duration: number,
+  onRemove: (id: string) => void,
+  toastId: string,
+  resetKey?: number,
+) => {
   const startRef = useRef<number | null>(null);
   const elapsedRef = useRef(0);
   const exitStartRef = useRef<number | null>(null);
   const removedRef = useRef(false);
+
+  // Сбрасываем все внутренние таймеры при смене resetKey
+  useEffect(() => {
+    startRef.current = null;
+    elapsedRef.current = 0;
+    exitStartRef.current = null;
+    removedRef.current = false;
+  }, [resetKey]);
 
   const startTimer = useCallback((now: number) => {
     if (startRef.current === null) {

@@ -9,6 +9,11 @@ interface UseToastAnimationProps {
   duration?: number;
   onRemove: (id: string) => void;
   toastId: string;
+  /**
+   * Ключ для сброса таймера без ремаута компонента.
+   * При изменении этого значения таймер начинается заново.
+   */
+  resetKey?: number;
 }
 
 /**
@@ -42,8 +47,9 @@ export const useToastAnimation = ({
   duration = DEFAULT_DURATION,
   onRemove,
   toastId,
+  resetKey,
 }: UseToastAnimationProps) => {
-  const timer = useToastTimer(duration, onRemove, toastId);
+  const timer = useToastTimer(duration, onRemove, toastId, resetKey);
   const phase = useToastPhase();
   const visibility = useToastVisibility();
 
@@ -89,7 +95,8 @@ export const useToastAnimation = ({
     return () => {
       cancelAnimationFrame(rafId);
     };
-  }, [timer, phase, visibility]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleMouseEnter = useCallback(() => {
     if (!phase.canPause()) return;

@@ -13,6 +13,7 @@ export const ToastItem: React.FC<ToastItemProps> = ({ toast, onRemove }) => {
       duration: toast.duration,
       onRemove,
       toastId: toast.id,
+      resetKey: toast.refreshKey,
     });
 
   const toastClasses = [

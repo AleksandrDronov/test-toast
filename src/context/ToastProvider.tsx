@@ -1,4 +1,5 @@
 import React, { useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { Toast } from "../types/types";
 import { ToastItem } from "../components/ToastItem";
 import { ToastContext } from "./ToastContext";
@@ -15,31 +16,39 @@ export const ToastProvider: React.FC<{ children: ReactNode }> = ({
     );
 
     if (existingToast) {
-      // Если тост с таким же сообщением и типом уже есть, обновляем его таймер
-      // Создаем новый id, чтобы сбросить таймер в ToastItem
-      const newId = Date.now().toString();
+      // Если тост с таким же сообщением и типом уже есть, обновляем его таймер,
+      // не меняя id (ключ в DOM остаётся стабильным, тост не ремоунтится)
+      const refreshKey = Date.now();
       setToasts((prev) =>
-        prev.map((t) => (t.id === existingToast.id ? { ...t, id: newId } : t)),
+        prev.map((t) =>
+          t.id === existingToast.id ? { ...t, refreshKey } : t,
+        ),
       );
       return;
     }
 
     const id = Date.now().toString();
-    setToasts((prev) => [...prev, { ...toast, id }]);
+    const refreshKey = Date.now();
+    setToasts((prev) => [...prev, { ...toast, id, refreshKey }]);
   };
 
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((toast) => toast.id !== id));
   };
 
+  
+
   return (
     <ToastContext.Provider value={{ toasts, addToast, removeToast }}>
       {children}
-      <ul className="toast-list">
-        {toasts.map((toast) => (
-          <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
-        ))}
-      </ul>
+        {createPortal(
+          <ul className="toast-list">
+            {toasts.map((toast) => (
+              <ToastItem key={toast.id} toast={toast} onRemove={removeToast} />
+            ))}
+          </ul>,
+          document.body,
+        )}
     </ToastContext.Provider>
   );
 };
