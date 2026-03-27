@@ -1,5 +1,6 @@
 import { ToastProvider } from './context/ToastProvider';
 import { useToast } from './context/useToast';
+import { AppHeader } from './components/AppHeader';
 import './App.css';
 
 const TriggerButtons = () => {
@@ -38,19 +39,18 @@ const TriggerButtons = () => {
 };
 
 function App() {
+
   return (
     <ToastProvider>
       <div className="app-layout">
-          <header className="header">
-            <h1>Система управления тостами</h1>
-          </header>
+        <AppHeader />
           
-          <main className="content">
-            <TriggerButtons />
-            <div className="dummy-content">
-               <p>Основная область содержимого</p>
-            </div>
-          </main>
+        <main className="content">
+          <TriggerButtons />
+          <div className="dummy-content">
+            <p>Основная область содержимого</p>
+          </div>
+        </main>
       </div>
     </ToastProvider>
   );
